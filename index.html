@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevMaster Studio - Dasturchilar uchun majmua</title>
+    
+    <!-- Tailwind CSS (Dizayn uchun) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome (Ikonkalar uchun) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CodeMirror (Kod yozish maydoni uchun) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+    
+    <!-- Pyodide (Brauzerda Python ishlashi uchun) -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .CodeMirror { height: 350px; border-radius: 0.5rem; font-family: 'Courier New', Courier, monospace; font-size: 14px; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Skrollbarni chiroyli qilish */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Yon panel (Sidebar) -->
+    <div class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col z-10 shadow-xl">
+        <div class="p-6 border-b border-slate-800 flex items-center gap-3">
+            <i class="fa-solid fa-code text-blue-500 text-2xl"></i>
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-500">DevMaster</h1>
+        </div>
+        
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="switchTab('python-runner')" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all hover:bg-slate-800 focus:bg-slate-800 text-slate-300 hover:text-white" id="nav-python-runner">
+                <i class="fa-brands fa-python text-yellow-400 w-5"></i> Python Kompilyatori
+            </button>
+            <button onclick="switchTab('api-tester')" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all hover:bg-slate-800 text-slate-300 hover:text-white" id="nav-api-tester">
+                <i class="fa-solid fa-network-wired text-green-400 w-5"></i> API Sinovchi
+            </button>
+            <button onclick="switchTab('json-tools')" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all hover:bg-slate-800 text-slate-300 hover:text-white" id="nav-json-tools">
+                <i class="fa-solid fa-brackets-curly text-orange-400 w-5">{ }</i> JSON Formatlovchi
+            </button>
+            <button onclick="switchTab('hash-gen')" class="w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all hover:bg-slate-800 text-slate-300 hover:text-white" id="nav-hash-gen">
+                <i class="fa-solid fa-lock text-purple-400 w-5"></i> Hash & Base64
+            </button>
+        </nav>
+        
+        <div class="p-4 border-t border-slate-800 text-xs text-slate-500 text-center">
+            Maxsus dasturchilar uchun <br> v1.0.0
+        </div>
+    </div>
+
+    <!-- Asosiy ish maydoni -->
+    <div class="flex-1 bg-slate-950 flex flex-col h-screen overflow-y-auto relative">
+        
+        <!-- Tab 1: Python Runner -->
+        <div id="python-runner" class="tab-content active p-8">
+            <div class="max-w-5xl mx-auto">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h2 class="text-3xl font-bold text-white mb-2">Python Kompilyatori</h2>
+                        <p class="text-slate-400">Brauzeringizning o'zida Python kodlarini yozing va ishga tushiring (Backend talab qilinmaydi!).</p>
+                    </div>
+                    <div id="py-status" class="px-3 py-1 rounded-full text-sm font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        <i class="fa-solid fa-spinner fa-spin mr-2"></i> Python yuklanmoqda...
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 gap-6">
+                    <!-- Editor -->
+                    <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                        <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                            <span class="text-sm font-medium text-slate-300">main.py</span>
+                            <button onclick="runPythonCode()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-sm font-semibold transition flex items-center gap-2">
+                                <i class="fa-solid fa-play"></i> Ishga tushirish
+                            </button>
+                        </div>
+                        <textarea id="python-editor">
+# Assalomu alaykum! Bu yerda Python kodi yozing.
+# Kod bevosita brauzeringizda ishlaydi.
+
+def fibonacci(n):
+    if n <= 0: return []
+    elif n == 1: return [0]
+    result = [0, 1]
+    for _ in range(2, n):
+        result.append(result[-1] + result[-2])
+    return result
+
+print("Fibonacci ketma-ketligi (10 ta son):")
+print(fibonacci(10))
+
+# Katta hisoblashlarni ham sinab ko'rishingiz mumkin!
+import math
+print(f"\nPi soni: {math.pi}")
+</textarea>
+                    </div>
+
+                    <!-- Output -->
+                    <div class="bg-[#0d1117] border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                        <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                            <span class="text-sm font-medium text-slate-300">Terminal (Konsol)</span>
+                            <button onclick="document.getElementById('python-output').innerHTML=''" class="text-slate-400 hover:text-white text-sm">
+                                <i class="fa-solid fa-trash-can"></i> Tozalash
+                            </button>
+                        </div>
+                        <pre id="python-output" class="p-4 h-48 overflow-y-auto text-green-400 font-mono text-sm"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: API Tester -->
+        <div id="api-tester" class="tab-content p-8">
+            <div class="max-w-5xl mx-auto">
+                <h2 class="text-3xl font-bold text-white mb-2">API Sinovchi (REST Client)</h2>
+                <p class="text-slate-400 mb-6">Turli xil API serverlarga GET/POST so'rovlarini yuboring va javoblarni tekshiring.</p>
+
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-lg mb-6">
+                    <div class="flex gap-4 mb-4">
+                        <select id="api-method" class="bg-slate-800 border border-slate-700 text-white font-bold rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                        <input type="text" id="api-url" value="https://jsonplaceholder.typicode.com/users/1" placeholder="https://api.example.com/data" class="flex-1 bg-slate-800 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 font-mono">
+                        <button onclick="sendApiRequest()" class="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-lg font-bold transition flex items-center gap-2">
+                            <i class="fa-regular fa-paper-plane"></i> Yuborish
+                        </button>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label class="text-slate-400 text-sm mb-1 block">So'rov tanasi (Request Body - faqat POST/PUT uchun JSON)</label>
+                        <textarea id="api-body" rows="4" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white font-mono text-sm focus:outline-none focus:border-blue-500" placeholder='{"name": "test"}'></textarea>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                    <div class="px-4 py-3 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                        <span class="font-medium text-slate-300">Server Javobi (Response)</span>
+                        <span id="api-status" class="text-sm font-mono px-2 py-1 rounded bg-slate-700 text-slate-300">Status: -</span>
+                    </div>
+                    <div class="relative">
+                        <textarea id="api-response" class="w-full h-64 bg-[#0d1117] text-green-400 p-4 font-mono text-sm focus:outline-none resize-none" readonly placeholder="Javob bu yerda ko'rinadi..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: JSON Tools -->
+        <div id="json-tools" class="tab-content p-8">
+            <div class="max-w-5xl mx-auto h-full flex flex-col">
+                <h2 class="text-3xl font-bold text-white mb-2">JSON Formatlovchi</h2>
+                <p class="text-slate-400 mb-6">Tartibsiz JSON ma'lumotlarni chiroyli holatga keltiring yoki ixchamlang (minify).</p>
+
+                <div class="grid grid-cols-2 gap-6 flex-1">
+                    <div class="flex flex-col h-full bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                        <div class="px-4 py-3 bg-slate-800 border-b border-slate-700 font-medium text-slate-300 flex justify-between">
+                            Kiruvchi ma'lumot (Raw)
+                            <button onclick="document.getElementById('json-input').value=''" class="text-xs text-slate-400 hover:text-white">Tozalash</button>
+                        </div>
+                        <textarea id="json-input" class="flex-1 w-full bg-[#0d1117] text-white p-4 font-mono text-sm focus:outline-none resize-none" placeholder='{"ism":"Ali","yosh":25,"dasturchi":true}'></textarea>
+                    </div>
+
+                    <div class="flex flex-col h-full bg-slate-900 border border-slate-700 rounded-xl overflow-hidden shadow-lg">
+                        <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex justify-between items-center">
+                            <span class="font-medium text-slate-300">Natija</span>
+                            <div class="flex gap-2">
+                                <button onclick="formatJSON()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-semibold">Formatlash</button>
+                                <button onclick="minifyJSON()" class="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-semibold">Ixchamlash</button>
+                            </div>
+                        </div>
+                        <textarea id="json-output" class="flex-1 w-full bg-[#0d1117] text-yellow-300 p-4 font-mono text-sm focus:outline-none resize-none" readonly></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Hash & Encoder -->
+        <div id="hash-gen" class="tab-content p-8">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-3xl font-bold text-white mb-2">Hash & Base64 Vositalari</h2>
+                <p class="text-slate-400 mb-8">Ma'lumotlarni shifrlash va xavfsizlik testlari uchun yordamchi asboblar.</p>
+
+                <!-- Base64 -->
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-lg mb-8">
+                    <h3 class="text-xl font-semibold text-white mb-4"><i class="fa-solid fa-arrows-rotate mr-2 text-blue-400"></i> Base64 Kodlash / Dekodlash</h3>
+                    <textarea id="base64-input" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white font-mono mb-4 focus:outline-none focus:border-blue-500" placeholder="Matnni kiriting..."></textarea>
+                    <div class="flex gap-3 mb-4">
+                        <button onclick="processBase64('encode')" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-medium transition">Encode (Kodlash)</button>
+                        <button onclick="processBase64('decode')" class="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-lg font-medium transition">Decode (Yechish)</button>
+                    </div>
+                    <textarea id="base64-output" rows="3" class="w-full bg-[#0d1117] border border-slate-700 rounded-lg p-3 text-green-400 font-mono focus:outline-none" readonly placeholder="Natija..."></textarea>
+                </div>
+
+                <!-- Hash -->
+                <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 shadow-lg">
+                    <h3 class="text-xl font-semibold text-white mb-4"><i class="fa-solid fa-fingerprint mr-2 text-green-400"></i> Hash Generator (SHA-256)</h3>
+                    <input type="text" id="hash-input" onkeyup="generateHash()" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white font-mono mb-4 focus:outline-none focus:border-green-500" placeholder="Matnni kiriting (Avtomatik hisoblanadi)...">
+                    
+                    <div class="bg-[#0d1117] border border-slate-700 rounded-lg p-4">
+                        <label class="text-slate-400 text-xs font-bold uppercase block mb-1">SHA-256 HASH</label>
+                        <div id="hash-output" class="text-green-400 font-mono break-all">-</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Mantiqi -->
+    <script>
+        // Tablarni almashtirish mantiqi
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('[id^="nav-"]').forEach(el => {
+                el.classList.remove('bg-slate-800', 'text-white');
+                el.classList.add('text-slate-300');
+            });
+            
+            document.getElementById(tabId).classList.add('active');
+            const navBtn = document.getElementById('nav-' + tabId);
+            if(navBtn) {
+                navBtn.classList.add('bg-slate-800', 'text-white');
+                navBtn.classList.remove('text-slate-300');
+            }
+
+            // CodeMirror qayta chizilishi uchun (display:none dan chiqqanda xato bermasligi uchun)
+            setTimeout(() => {
+                if(window.pyEditor) window.pyEditor.refresh();
+            }, 10);
+        }
+
+        // ==========================================
+        // 1. Python Pyodide Mantiqi (ENG ZO'R QISMI)
+        // ==========================================
+        let pyEditor;
+        let pyodideInstance = null;
+
+        // CodeMirror ni ishga tushirish
+        window.onload = function() {
+            pyEditor = CodeMirror.fromTextArea(document.getElementById('python-editor'), {
+                mode: 'python',
+                theme: 'dracula',
+                lineNumbers: true,
+                indentUnit: 4,
+                matchBrackets: true
+            });
+            initPyodide();
+            switchTab('python-runner'); // Boshlang'ich tab
+        };
+
+        async function initPyodide() {
+            try {
+                // Pyodide ni yuklash
+                pyodideInstance = await loadPyodide();
+                const statusEl = document.getElementById('py-status');
+                statusEl.innerHTML = '<i class="fa-solid fa-check-circle mr-2"></i> Python Tayyor!';
+                statusEl.className = "px-3 py-1 rounded-full text-sm font-medium bg-green-500/10 text-green-400 border border-green-500/20";
+            } catch (err) {
+                document.getElementById('py-status').innerHTML = "Xatolik yuz berdi";
+                document.getElementById('py-status').className = "px-3 py-1 rounded-full text-sm font-medium bg-red-500/10 text-red-400";
+            }
+        }
+
+        async function runPythonCode() {
+            if (!pyodideInstance) {
+                alert("Kuting, Python hali yuklanmoqda...");
+                return;
+            }
+            
+            const code = pyEditor.getValue();
+            const outputEl = document.getElementById('python-output');
+            outputEl.innerHTML = "Ishga tushirilmoqda...\n\n";
+            outputEl.className = "p-4 h-48 overflow-y-auto font-mono text-sm text-yellow-400";
+
+            try {
+                // Konsol natijalarini ushlab qolish
+                pyodideInstance.setStdout({ batched: (msg) => {
+                    outputEl.innerHTML += msg + "\n";
+                }});
+                pyodideInstance.setStderr({ batched: (msg) => {
+                    outputEl.innerHTML += `<span class="text-red-500">${msg}</span>\n`;
+                }});
+
+                // Kodni ishga tushirish
+                await pyodideInstance.runPythonAsync(code);
+                outputEl.className = "p-4 h-48 overflow-y-auto font-mono text-sm text-green-400"; // Muvaffaqiyatli rang
+            } catch (err) {
+                outputEl.innerHTML += `<span class="text-red-500">${err}</span>\n`;
+            }
+        }
+
+        // ==========================================
+        // 2. API Tester Mantiqi
+        // ==========================================
+        async function sendApiRequest() {
+            const method = document.getElementById('api-method').value;
+            const url = document.getElementById('api-url').value;
+            const bodyTxt = document.getElementById('api-body').value;
+            const responseEl = document.getElementById('api-response');
+            const statusEl = document.getElementById('api-status');
+
+            responseEl.value = "Yuklanmoqda...";
+            statusEl.innerText = "Status: Kutilmoqda...";
+            statusEl.className = "text-sm font-mono px-2 py-1 rounded bg-yellow-600/20 text-yellow-400";
+
+            try {
+                const options = { method: method };
+                if (method !== 'GET' && method !== 'DELETE' && bodyTxt.trim() !== '') {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = bodyTxt;
+                }
+
+                const startTime = Date.now();
+                const res = await fetch(url, options);
+                const timeTaken = Date.now() - startTime;
+                
+                statusEl.innerText = `Status: ${res.status} ${res.statusText} (${timeTaken}ms)`;
+                
+                if(res.ok) statusEl.className = "text-sm font-mono px-2 py-1 rounded bg-green-600/20 text-green-400";
+                else statusEl.className = "text-sm font-mono px-2 py-1 rounded bg-red-600/20 text-red-400";
+
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const data = await res.json();
+                    responseEl.value = JSON.stringify(data, null, 4);
+                } else {
+                    const text = await res.text();
+                    responseEl.value = text;
+                }
+            } catch (err) {
+                statusEl.innerText = "Status: XATO";
+                statusEl.className = "text-sm font-mono px-2 py-1 rounded bg-red-600/20 text-red-400";
+                responseEl.value = "So'rov yuborishda xatolik yuz berdi:\n\n" + err.message + "\n\n(CORS xatosi bo'lishi mumkin yoki URL noto'g'ri)";
+            }
+        }
+
+        // ==========================================
+        // 3. JSON Mantiqi
+        // ==========================================
+        function formatJSON() {
+            const input = document.getElementById('json-input').value;
+            const output = document.getElementById('json-output');
+            try {
+                const parsed = JSON.parse(input);
+                output.value = JSON.stringify(parsed, null, 4);
+                output.classList.remove('text-red-400');
+                output.classList.add('text-yellow-300');
+            } catch (e) {
+                output.value = "Xatolik: Noto'g'ri JSON formati.\n\n" + e.message;
+                output.classList.remove('text-yellow-300');
+                output.classList.add('text-red-400');
+            }
+        }
+
+        function minifyJSON() {
+            const input = document.getElementById('json-input').value;
+            const output = document.getElementById('json-output');
+            try {
+                const parsed = JSON.parse(input);
+                output.value = JSON.stringify(parsed);
+                output.classList.remove('text-red-400');
+                output.classList.add('text-yellow-300');
+            } catch (e) {
+                output.value = "Xatolik: Noto'g'ri JSON formati.\n\n" + e.message;
+                output.classList.remove('text-yellow-300');
+                output.classList.add('text-red-400');
+            }
+        }
+
+        // ==========================================
+        // 4. Base64 & Hash Mantiqi
+        // ==========================================
+        function processBase64(action) {
+            const input = document.getElementById('base64-input').value;
+            const output = document.getElementById('base64-output');
+            try {
+                if(action === 'encode') {
+                    output.value = btoa(unescape(encodeURIComponent(input)));
+                } else {
+                    output.value = decodeURIComponent(escape(atob(input)));
+                }
+            } catch(e) {
+                output.value = "Xatolik: " + e.message;
+            }
+        }
+
+        async function generateHash() {
+            const text = document.getElementById('hash-input').value;
+            const output = document.getElementById('hash-output');
+            if(!text) {
+                output.innerText = "-";
+                return;
+            }
+            
+            // Web Crypto API yordamida SHA-256 yaratish
+            const msgBuffer = new TextEncoder().encode(text);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            
+            output.innerText = hashHex;
+        }
+    </script>
+</body>
+</html>
